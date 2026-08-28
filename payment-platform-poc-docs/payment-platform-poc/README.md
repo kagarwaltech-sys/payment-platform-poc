@@ -1,5 +1,30 @@
 # Payment Platform POC
 
+## Run with Docker Compose
+
+From this directory, start the API and PostgreSQL services:
+
+```powershell
+docker compose up --build
+```
+
+The API is available at `http://localhost:8080`. The first database start applies `backend/migrations/001_initial.sql` automatically. Postgres data is stored in the `postgres-data` volume.
+
+Run the Go tests against the Compose database from `backend`:
+
+```powershell
+$env:TEST_DATABASE_URL='postgres://payments:payments@localhost:5432/payments?sslmode=disable'
+go test ./...
+```
+
+To reset the database and rerun migrations:
+
+```powershell
+docker compose down -v
+```
+
+GitHub Codespaces uses `.devcontainer/devcontainer.json` and starts the same Compose services automatically.
+
 A portfolio-grade proof of concept for a modern card-payment backend implemented in Go.
 
 ## What this demonstrates

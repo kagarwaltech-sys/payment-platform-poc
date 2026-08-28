@@ -1,0 +1,15 @@
+{
+  "name": "Payment Platform POC",
+  "dockerComposeFile": "../payment-platform-poc-docs/payment-platform-poc/docker-compose.yml",
+  "service": "api",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}/payment-platform-poc-docs/payment-platform-poc",
+  "shutdownAction": "stopCompose",
+  "forwardPorts": [8080, 5432],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go"
+      ]
+    }
+  }
+}

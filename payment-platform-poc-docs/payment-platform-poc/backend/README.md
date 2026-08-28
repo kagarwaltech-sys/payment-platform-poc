@@ -1,5 +1,7 @@
 # Backend
 
+For the full API and PostgreSQL stack, use the Compose instructions in the parent [README](../README.md).
+
 Requires Go 1.26+ and PostgreSQL 14+. Set `DATABASE_URL` (for example, `postgres://postgres:postgres@localhost:5432/payments?sslmode=disable`), create the database, and apply migrations in order:
 
 ```powershell
