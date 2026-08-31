@@ -2,6 +2,8 @@
 
 Use this prompt from the repository root after these documents are committed.
 
+> Historical note: this prompt describes the original mock-only implementation slice. The current implementation additionally includes Stripe and Adyen adapters, amount-based processor routing, and the POS one-call endpoint documented in the other files.
+
 ---
 
 You are implementing the first backend vertical slice of this payment-platform POC.
@@ -40,13 +42,15 @@ Keep dependencies minimal. Avoid heavyweight frameworks.
 2. Get payment
 3. Authorize payment
 4. Capture payment, including partial capture
-5. Mock PSP adapter
+5. Mock PSP adapter as the initial processor
 6. Payment state machine validation
 7. Persistent idempotency handling
 8. Immutable double-entry journal creation on successful capture
 9. PostgreSQL migrations
 10. Unit and integration tests for important invariants
 11. Local developer instructions
+
+The follow-up implementation adds Stripe and Adyen adapters behind the same processor interface and selects among registered processors by amount.
 
 Do NOT implement yet:
 
@@ -56,11 +60,9 @@ Do NOT implement yet:
 - webhooks
 - settlement
 - reconciliation jobs
-- real Stripe integration
-- real Adyen integration
+- webhook-driven provider reconciliation
 - authentication/authorization
 - frontend UI
-- multi-processor routing
 
 ## Non-negotiable invariants
 

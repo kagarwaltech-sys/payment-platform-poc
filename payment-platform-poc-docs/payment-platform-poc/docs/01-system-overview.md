@@ -4,20 +4,28 @@
 
 Build the smallest useful vertical slice of a payment platform that demonstrates architecture-level payment concepts rather than just SDK integration.
 
-## Initial Flow
+## Current Flow
 
 ```mermaid
 flowchart LR
     C[Client / Future React UI] -->|REST + Idempotency-Key| API[Payment API]
     API --> IDEM[Idempotency Store]
     API --> PS[Payment Service]
-    PS --> PSP[PSP Adapter]
-    PSP --> MOCK[Mock PSP]
+    PS --> ROUTER[Processor Router]
+    ROUTER --> MOCK[Mock Processor]
+    ROUTER --> STRIPE[Stripe Adapter]
+    ROUTER --> ADYEN[Adyen Adapter]
     PS --> LEDGER[Ledger Service]
     PS --> DB[(PostgreSQL)]
     LEDGER --> DB
     IDEM --> DB
 ```
+
+## POS Payment Flow
+
+`POST /api/v1/payments/pay` is the server-controlled path for a POS-style integration. It creates the internal payment, selects a processor by amount, authorizes, captures the full amount, records the ledger journal, and returns the final `CAPTURED` state.
+
+The selected processor name and provider reference are persisted before capture. Capture resolves that persisted processor, so a payment does not switch providers mid-flow.
 
 ## Authorization Flow
 
@@ -26,7 +34,7 @@ sequenceDiagram
     participant Client
     participant API as Payment API
     participant Service as Payment Service
-    participant PSP as Mock PSP
+    participant PSP as Selected PSP
     participant DB as PostgreSQL
 
     Client->>API: POST /payments/{id}/authorize
@@ -46,7 +54,7 @@ sequenceDiagram
     participant Client
     participant API as Payment API
     participant Service as Payment Service
-    participant PSP as Mock PSP
+    participant PSP as Selected PSP
     participant Ledger as Ledger Service
     participant DB as PostgreSQL
 
@@ -68,9 +76,18 @@ sequenceDiagram
 - **Payment API** owns HTTP concerns and validation.
 - **Payment Service** owns payment business rules and state transitions.
 - **PSP Adapter** hides processor-specific APIs.
+- **Processor Router** maps an amount-based policy to named processor adapters.
 - **Ledger Service** owns accounting journal creation and balancing rules.
 - **Idempotency Store** guarantees safe retry behavior for write requests.
 - **PostgreSQL** is the initial source of truth for internal payment state and ledger data.
+
+## Implemented Processor Adapters
+
+- `mock`: deterministic local adapter used by tests and low-value routing.
+- `stripe`: Stripe test-mode PaymentIntents with manual capture.
+- `adyen`: Adyen test Checkout API with manual capture.
+
+Stripe and Adyen credentials are supplied through environment variables and are not stored in the repository.
 
 ## First-Slice Invariants
 

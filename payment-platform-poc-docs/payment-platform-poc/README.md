@@ -17,13 +17,16 @@ docker compose up --build
 
 The adapter uses Stripe's `pm_card_visa` test PaymentMethod and manual-capture PaymentIntents. Set `PAYMENT_PROCESSOR=mock` to run locally without Stripe.
 
-To route by amount, set `PAYMENT_PROCESSOR=amount`. Payments at or below `PROCESSOR_AMOUNT_THRESHOLD` use the mock processor; larger payments use Stripe:
+To route by amount, set `PAYMENT_PROCESSOR=amount`. Payments at or below `PROCESSOR_AMOUNT_THRESHOLD` use mock, payments up to `PROCESSOR_ADYEN_THRESHOLD` use Stripe, and larger payments use Adyen:
 
 ```powershell
 $env:PAYMENT_PROCESSOR='amount'
 $env:PROCESSOR_AMOUNT_THRESHOLD='10000'
+$env:PROCESSOR_ADYEN_THRESHOLD='50000'
 docker compose up --build
 ```
+
+For Adyen routing, also set `ADYEN_API_KEY` and `ADYEN_MERCHANT_ACCOUNT`. The default Adyen test payment method is a test Visa card; override it with `ADYEN_PAYMENT_METHOD_JSON` when needed.
 
 The API is available at `http://localhost:8080`. The first database start applies `backend/migrations/001_initial.sql` automatically. Postgres data is stored in the `postgres-data` volume.
 
@@ -59,13 +62,14 @@ A portfolio-grade proof of concept for a modern card-payment backend implemented
 - Payment lifecycle modeling: create, authorize, capture
 - Explicit payment state machine
 - Idempotent write APIs
-- PSP abstraction with a mock processor adapter
+- PSP abstraction with mock, Stripe sandbox, and Adyen test adapters
+- Registry-based processor routing by amount
 - Money represented in minor units; no floating-point arithmetic
 - Immutable double-entry ledger entries
 - Transactional consistency between payment state and ledger writes
 - Clear architecture documentation suitable for design review and portfolio discussion
 
-## Initial Scope
+## Current Scope
 
 The first implementation slice is backend-only and intentionally narrow:
 
@@ -75,9 +79,10 @@ The first implementation slice is backend-only and intentionally narrow:
 4. Persist payment state
 5. Record ledger entries on capture
 6. Support idempotent retries
-7. Use a mock PSP adapter
+7. Use mock, Stripe, or Adyen through the processor registry
+8. Complete a POS-style payment with one API call
 
-Not included yet: refunds, disputes, webhooks, settlement, reconciliation, multi-processor routing, or frontend UI.
+Not included yet: refunds, disputes, webhooks, settlement, reconciliation, automatic recovery after ambiguous PSP results, or frontend UI.
 
 ## Repository Structure
 

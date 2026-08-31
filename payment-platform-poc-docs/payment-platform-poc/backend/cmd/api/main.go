@@ -9,6 +9,7 @@ import (
 
 	"payment-platform/backend/internal/httpapi"
 	"payment-platform/backend/internal/payment"
+	adyenprocessor "payment-platform/backend/internal/processor/adyen"
 	"payment-platform/backend/internal/processor/mock"
 	processorrouter "payment-platform/backend/internal/processor/router"
 	stripeprocessor "payment-platform/backend/internal/processor/stripe"
@@ -33,26 +34,45 @@ func main() {
 	if processorMode == "mock" {
 		processor = &mock.Processor{}
 	} else {
-		key := os.Getenv("STRIPE_SECRET_KEY")
-		if key == "" {
+		stripeKey := os.Getenv("STRIPE_SECRET_KEY")
+		if stripeKey == "" {
 			log.Error("STRIPE_SECRET_KEY is required when PAYMENT_PROCESSOR is not mock")
 			os.Exit(1)
 		}
-		stripe := stripeprocessor.New(key, os.Getenv("STRIPE_PAYMENT_METHOD"))
+		stripe := stripeprocessor.New(stripeKey, os.Getenv("STRIPE_PAYMENT_METHOD"))
 		if processorMode == "amount" {
 			threshold, err := strconv.ParseInt(os.Getenv("PROCESSOR_AMOUNT_THRESHOLD"), 10, 64)
 			if err != nil {
 				threshold = 10000
 			}
+			adyenKey := os.Getenv("ADYEN_API_KEY")
+			adyenMerchant := os.Getenv("ADYEN_MERCHANT_ACCOUNT")
+			if adyenKey == "" || adyenMerchant == "" {
+				log.Error("ADYEN_API_KEY and ADYEN_MERCHANT_ACCOUNT are required for amount routing")
+				os.Exit(1)
+			}
+			adyen, err := adyenprocessor.New(adyenKey, adyenMerchant, os.Getenv("ADYEN_BASE_URL"), os.Getenv("ADYEN_PAYMENT_METHOD_JSON"))
+			if err != nil {
+				log.Error("invalid Adyen configuration", "error", err)
+				os.Exit(1)
+			}
+			adyenThreshold, err := strconv.ParseInt(os.Getenv("PROCESSOR_ADYEN_THRESHOLD"), 10, 64)
+			if err != nil {
+				adyenThreshold = 50000
+			}
 			processors := map[string]payment.Processor{
 				"mock":   &mock.Processor{},
 				"stripe": stripe,
+				"adyen":  adyen,
 			}
 			processor = processorrouter.New(processors, func(amount int64) string {
 				if amount <= threshold {
 					return "mock"
 				}
-				return "stripe"
+				if amount <= adyenThreshold {
+					return "stripe"
+				}
+				return "adyen"
 			})
 		} else {
 			processor = stripe

@@ -65,9 +65,38 @@ Rules:
 - Initial status is `CREATED`.
 - Initial authorized and captured amounts are zero.
 
+This endpoint creates only the internal payment record. Use the POS endpoint for a server-controlled payment that completes authorization and capture in one request.
+
 ---
 
-## 2. Get Payment
+## 2. POS Payment
+
+`POST /api/v1/payments/pay`
+
+This endpoint creates the local payment, selects a processor by amount, authorizes, captures the full amount, records the capture and ledger journal, and returns the final state.
+
+Response `200 OK`:
+
+```json
+{
+  "id": "8bf6cb57-b0bd-4a62-9e55-18ae0d16f001",
+  "amount": 10000,
+  "currency": "USD",
+  "authorized_amount": 10000,
+  "captured_amount": 10000,
+  "status": "CAPTURED",
+  "capture_method": "manual",
+  "processor": "stripe",
+  "processor_payment_id": "pi_123",
+  "processor_capture_id": "pi_123"
+}
+```
+
+The client does not call authorization or capture separately for this flow.
+
+---
+
+## 3. Get Payment
 
 `GET /api/v1/payments/{payment_id}`
 
@@ -89,7 +118,7 @@ Response `200 OK`:
 
 ---
 
-## 3. Authorize Payment
+## 4. Authorize Payment
 
 `POST /api/v1/payments/{payment_id}/authorize`
 
@@ -126,7 +155,7 @@ Rules:
 
 ---
 
-## 4. Capture Payment
+## 5. Capture Payment
 
 `POST /api/v1/payments/{payment_id}/capture`
 
@@ -164,7 +193,7 @@ Rules:
 - Capture amount must be greater than zero.
 - Total captured amount cannot exceed authorized amount.
 - Full capture results in `CAPTURED`.
-- Partial capture results in `PARTIALLY_CAPTURED`.
+- Partial capture results in `PARTIALLY_CAPTURED` for processors that support it. The current Stripe and Adyen adapters require the full remaining authorized amount.
 - Payment state update and ledger journal creation must commit in the same DB transaction.
 
 ## Suggested HTTP Status Codes
@@ -178,3 +207,15 @@ Rules:
 | Duplicate key with mismatched request | 409 |
 | Invalid state transition | 409 |
 | Internal/processor error | 500 or mapped 5xx |
+
+## Processor Routing
+
+With `PAYMENT_PROCESSOR=amount`, the current policy is:
+
+| Amount in minor units | Processor |
+|---:|---|
+| `<= PROCESSOR_AMOUNT_THRESHOLD` | mock |
+| `> PROCESSOR_AMOUNT_THRESHOLD` and `<= PROCESSOR_ADYEN_THRESHOLD` | stripe |
+| `> PROCESSOR_ADYEN_THRESHOLD` | adyen |
+
+The router uses a named processor registry. Additional adapters can be registered without changing the payment service or database schema.

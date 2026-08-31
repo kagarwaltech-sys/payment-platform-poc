@@ -73,6 +73,10 @@ Two requests with the same idempotency key may arrive simultaneously. The persis
 
 Use a unique database constraint and transaction/locking semantics rather than an in-memory-only mutex.
 
+## POS Composite Operation
+
+`POST /api/v1/payments/pay` uses the client key for the create operation and deterministic derived keys for authorization and capture. A retry with the same client key reuses the completed internal operations and does not intentionally issue duplicate processor calls.
+
 ## Important Distributed Failure
 
 A difficult case is:

@@ -8,6 +8,8 @@
 - `CAPTURED`
 - `AUTHORIZATION_FAILED`
 
+The POS endpoint returns only after the payment reaches its final capture result. The intermediate `AUTHORIZED` state remains available through the explicit authorization and capture endpoints.
+
 ## Diagram
 
 ```mermaid
@@ -15,7 +17,7 @@ stateDiagram-v2
     [*] --> CREATED
     CREATED --> AUTHORIZED: authorize succeeds
     CREATED --> AUTHORIZATION_FAILED: authorize fails
-    AUTHORIZED --> PARTIALLY_CAPTURED: partial capture
+    AUTHORIZED --> PARTIALLY_CAPTURED: partial capture (supported processor)
     AUTHORIZED --> CAPTURED: full capture
     PARTIALLY_CAPTURED --> PARTIALLY_CAPTURED: another partial capture
     PARTIALLY_CAPTURED --> CAPTURED: remaining amount captured
@@ -58,4 +60,5 @@ Remaining capturable= 6000
 - Authorization in slice 1 authorizes the full requested amount.
 - `captured_amount` is cumulative.
 - Capture cannot exceed `authorized_amount - captured_amount`.
+- Partial capture is supported only by processors that advertise that capability. The current Stripe and Adyen adapters require the full remaining authorized amount.
 - Once fully captured, further capture requests fail unless they are exact idempotent retries of a prior request.
