@@ -8,9 +8,10 @@ import (
 	"errors"
 	"fmt"
 
+	"payment-platform/backend/internal/payment"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"payment-platform/backend/internal/payment"
 )
 
 var ErrIdempotencyConflict = errors.New("idempotency key reused with a different request")
@@ -174,7 +175,11 @@ func (x *Service) Authorize(ctx context.Context, id, key string) (payment.Paymen
 		x.Store.Fail(ctx, key, op)
 		return p, 0, err
 	}
-	ref, err := x.Processor.Authorize(ctx, p.ID, p.Amount, p.Currency)
+	processor := x.Processor
+	if selector, ok := x.Processor.(interface{ ProcessorForAmount(int64) payment.Processor }); ok {
+		processor = selector.ProcessorForAmount(p.Amount)
+	}
+	ref, err := processor.Authorize(ctx, p.ID, p.Amount, p.Currency)
 	if err != nil {
 		x.Store.Fail(ctx, key, op)
 		return p, 0, err
@@ -182,7 +187,7 @@ func (x *Service) Authorize(ctx context.Context, id, key string) (payment.Paymen
 	p.Status = payment.Authorized
 	p.AuthorizedAmount = p.Amount
 	p.Processor = "unknown"
-	if named, ok := x.Processor.(interface{ Name() string }); ok {
+	if named, ok := processor.(interface{ Name() string }); ok {
 		p.Processor = named.Name()
 	}
 	p.ProcessorPaymentID = ref
@@ -231,18 +236,29 @@ func (x *Service) Capture(ctx context.Context, id, key string, req CaptureReques
 		x.Store.Fail(ctx, key, op)
 		return p, "", 0, err
 	}
-	if capable, ok := x.Processor.(interface{ SupportsPartialCapture() bool }); ok && !capable.SupportsPartialCapture() && req.Amount != p.AuthorizedAmount-p.CapturedAmount {
+	processor := x.Processor
+	if resolver, ok := x.Processor.(interface {
+		ProcessorByName(string) (payment.Processor, bool)
+	}); ok {
+		var found bool
+		processor, found = resolver.ProcessorByName(p.Processor)
+		if !found {
+			x.Store.Fail(ctx, key, op)
+			return p, "", 0, fmt.Errorf("processor %q is not configured", p.Processor)
+		}
+	}
+	if capable, ok := processor.(interface{ SupportsPartialCapture() bool }); ok && !capable.SupportsPartialCapture() && req.Amount != p.AuthorizedAmount-p.CapturedAmount {
 		x.Store.Fail(ctx, key, op)
 		return p, "", 0, fmt.Errorf("%w: capture the full remaining authorized amount", ErrPartialCaptureUnsupported)
 	}
 	finalCapture := p.CapturedAmount+req.Amount == p.AuthorizedAmount
 	var processorID string
-	if captureProcessor, ok := x.Processor.(interface {
+	if captureProcessor, ok := processor.(interface {
 		CaptureFinal(context.Context, string, int64, string, bool) (string, error)
 	}); ok {
 		processorID, err = captureProcessor.CaptureFinal(ctx, p.ProcessorPaymentID, req.Amount, key, finalCapture)
 	} else {
-		processorID, err = x.Processor.Capture(ctx, p.ProcessorPaymentID, req.Amount, key)
+		processorID, err = processor.Capture(ctx, p.ProcessorPaymentID, req.Amount, key)
 	}
 	if err != nil {
 		x.Store.Fail(ctx, key, op)

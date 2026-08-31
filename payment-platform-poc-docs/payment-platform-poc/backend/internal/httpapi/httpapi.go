@@ -6,10 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
 	"payment-platform/backend/internal/payment"
 	"payment-platform/backend/internal/store"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 type API struct {

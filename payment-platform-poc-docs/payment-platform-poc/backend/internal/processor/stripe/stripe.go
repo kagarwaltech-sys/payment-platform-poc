@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	stripego "github.com/stripe/stripe-go/v86"
 	"payment-platform/backend/internal/payment"
+
+	stripego "github.com/stripe/stripe-go/v86"
 )
 
 type Processor struct {

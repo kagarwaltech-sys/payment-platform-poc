@@ -17,6 +17,14 @@ docker compose up --build
 
 The adapter uses Stripe's `pm_card_visa` test PaymentMethod and manual-capture PaymentIntents. Set `PAYMENT_PROCESSOR=mock` to run locally without Stripe.
 
+To route by amount, set `PAYMENT_PROCESSOR=amount`. Payments at or below `PROCESSOR_AMOUNT_THRESHOLD` use the mock processor; larger payments use Stripe:
+
+```powershell
+$env:PAYMENT_PROCESSOR='amount'
+$env:PROCESSOR_AMOUNT_THRESHOLD='10000'
+docker compose up --build
+```
+
 The API is available at `http://localhost:8080`. The first database start applies `backend/migrations/001_initial.sql` automatically. Postgres data is stored in the `postgres-data` volume.
 
 For a POS-style server-controlled payment, use the single-call endpoint:

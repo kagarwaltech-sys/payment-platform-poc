@@ -26,6 +26,7 @@ services:
       PAYMENT_PROCESSOR: ${PAYMENT_PROCESSOR:-stripe}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_PAYMENT_METHOD: ${STRIPE_PAYMENT_METHOD:-pm_card_visa}
+      PROCESSOR_AMOUNT_THRESHOLD: ${PROCESSOR_AMOUNT_THRESHOLD:-10000}
     depends_on:
       db:
         condition: service_healthy

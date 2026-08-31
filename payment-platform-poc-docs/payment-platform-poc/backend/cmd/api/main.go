@@ -5,10 +5,12 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 
 	"payment-platform/backend/internal/httpapi"
 	"payment-platform/backend/internal/payment"
 	"payment-platform/backend/internal/processor/mock"
+	processorrouter "payment-platform/backend/internal/processor/router"
 	stripeprocessor "payment-platform/backend/internal/processor/stripe"
 	"payment-platform/backend/internal/store"
 )
@@ -27,7 +29,8 @@ func main() {
 	}
 	defer s.Pool.Close()
 	var processor payment.Processor
-	if os.Getenv("PAYMENT_PROCESSOR") == "mock" {
+	processorMode := os.Getenv("PAYMENT_PROCESSOR")
+	if processorMode == "mock" {
 		processor = &mock.Processor{}
 	} else {
 		key := os.Getenv("STRIPE_SECRET_KEY")
@@ -35,7 +38,25 @@ func main() {
 			log.Error("STRIPE_SECRET_KEY is required when PAYMENT_PROCESSOR is not mock")
 			os.Exit(1)
 		}
-		processor = stripeprocessor.New(key, os.Getenv("STRIPE_PAYMENT_METHOD"))
+		stripe := stripeprocessor.New(key, os.Getenv("STRIPE_PAYMENT_METHOD"))
+		if processorMode == "amount" {
+			threshold, err := strconv.ParseInt(os.Getenv("PROCESSOR_AMOUNT_THRESHOLD"), 10, 64)
+			if err != nil {
+				threshold = 10000
+			}
+			processors := map[string]payment.Processor{
+				"mock":   &mock.Processor{},
+				"stripe": stripe,
+			}
+			processor = processorrouter.New(processors, func(amount int64) string {
+				if amount <= threshold {
+					return "mock"
+				}
+				return "stripe"
+			})
+		} else {
+			processor = stripe
+		}
 	}
 	api := &httpapi.API{Service: &store.Service{Store: s, Processor: processor}, Logger: log}
 	log.Info("listening", "addr", ":8080")
