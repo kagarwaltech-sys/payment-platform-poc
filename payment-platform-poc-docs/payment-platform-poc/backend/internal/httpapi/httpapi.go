@@ -20,10 +20,31 @@ type API struct {
 func (a *API) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Post("/api/v1/payments", a.create)
+	r.Post("/api/v1/payments/pay", a.pay)
 	r.Get("/api/v1/payments/{id}", a.get)
 	r.Post("/api/v1/payments/{id}/authorize", a.authorize)
 	r.Post("/api/v1/payments/{id}/capture", a.capture)
 	return r
+}
+func (a *API) pay(w http.ResponseWriter, r *http.Request) {
+	k, ok := key(w, r)
+	if !ok {
+		return
+	}
+	var q store.CreateRequest
+	if err := decode(r, &q); err != nil {
+		errorResponse(w, 400, err)
+		return
+	}
+	p, processorID, code, err := a.Service.Pay(r.Context(), k, q)
+	if err != nil {
+		errorResponse(w, statusFor(err), err)
+		return
+	}
+	write(w, code, struct {
+		payment.Payment
+		ProcessorCaptureID string `json:"processor_capture_id"`
+	}{p, processorID})
 }
 func write(w http.ResponseWriter, code int, body any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -39,6 +60,8 @@ func errorResponse(w http.ResponseWriter, code int, err error) {
 		c = "INVALID_STATE_TRANSITION"
 	case errors.Is(err, payment.ErrOverCapture), errors.Is(err, payment.ErrInvalidAmount):
 		c = "INVALID_REQUEST"
+	case errors.Is(err, store.ErrPartialCaptureUnsupported):
+		c = "PARTIAL_CAPTURE_UNSUPPORTED"
 	case errors.Is(err, pgx.ErrNoRows):
 		c = "PAYMENT_NOT_FOUND"
 	case errors.Is(err, store.ErrInProgress):
@@ -64,6 +87,8 @@ func statusFor(err error) int {
 	case errors.Is(err, store.ErrIdempotencyConflict), errors.Is(err, payment.ErrInvalidTransition), errors.Is(err, store.ErrInProgress):
 		return 409
 	case errors.Is(err, payment.ErrOverCapture), errors.Is(err, payment.ErrInvalidAmount):
+		return 400
+	case errors.Is(err, store.ErrPartialCaptureUnsupported):
 		return 400
 	case errors.Is(err, pgx.ErrNoRows):
 		return 404

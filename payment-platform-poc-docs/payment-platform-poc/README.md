@@ -8,7 +8,26 @@ From this directory, start the API and PostgreSQL services:
 docker compose up --build
 ```
 
+By default the API uses Stripe test mode. Set `STRIPE_SECRET_KEY` to a Stripe test secret or restricted key before starting Compose:
+
+```powershell
+$env:STRIPE_SECRET_KEY='rk_test_...'
+docker compose up --build
+```
+
+The adapter uses Stripe's `pm_card_visa` test PaymentMethod and manual-capture PaymentIntents. Set `PAYMENT_PROCESSOR=mock` to run locally without Stripe.
+
 The API is available at `http://localhost:8080`. The first database start applies `backend/migrations/001_initial.sql` automatically. Postgres data is stored in the `postgres-data` volume.
+
+For a POS-style server-controlled payment, use the single-call endpoint:
+
+```powershell
+$headers=@{'Idempotency-Key'='pos-payment-1';'Content-Type'='application/json'}
+$body='{"amount":10000,"currency":"USD","capture_method":"manual","reference":"pos-order-1"}'
+Invoke-RestMethod http://localhost:8080/api/v1/payments/pay -Method Post -Headers $headers -Body $body
+```
+
+This creates, authorizes, captures, and records the ledger entry before returning `CAPTURED`. The existing endpoints remain available for flows that need separate authorization and capture.
 
 Run the Go tests against the Compose database from `backend`:
 

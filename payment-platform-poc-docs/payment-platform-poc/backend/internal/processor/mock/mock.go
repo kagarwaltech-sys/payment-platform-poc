@@ -13,6 +13,8 @@ type Processor struct {
 	AuthorizeErr, CaptureErr error
 }
 
+func (p *Processor) Name() string { return "mock" }
+
 func (p *Processor) Authorize(_ context.Context, paymentID string, _ int64, _ string) (string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

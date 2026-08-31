@@ -23,6 +23,9 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgres://payments:payments@db:5432/payments?sslmode=disable
+      PAYMENT_PROCESSOR: ${PAYMENT_PROCESSOR:-stripe}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PAYMENT_METHOD: ${STRIPE_PAYMENT_METHOD:-pm_card_visa}
     depends_on:
       db:
         condition: service_healthy
