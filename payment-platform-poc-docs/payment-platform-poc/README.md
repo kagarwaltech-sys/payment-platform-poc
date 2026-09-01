@@ -105,3 +105,5 @@ payment-platform-poc/
 A payment is not represented by one mutable status alone. Authorization, capture, settlement, and payout are distinct concepts and will be modeled explicitly as the project grows.
 
 See the `docs/` directory for the implementation contract.
+
+The AI and MCP extension design is documented in `docs/08-ai-mcp-architecture.md`. The MCP server and future agent are separate repositories that call this API over authenticated HTTP.
