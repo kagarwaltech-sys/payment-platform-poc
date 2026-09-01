@@ -261,3 +261,9 @@ Rules:
 - Multiple partial refunds are allowed until `refunded_amount == captured_amount`.
 - Refund state and the balanced refund ledger journal commit in one database transaction.
 - Reusing the same idempotency key returns the original refund result without calling the processor again.
+
+## 7. Payment Activity
+
+`GET /api/v1/payments/{payment_id}/activity`
+
+Returns read-only operational activity for the payment console, including capture records, refund records, and the balanced ledger journals associated with those records. This endpoint does not mutate payment or ledger state.

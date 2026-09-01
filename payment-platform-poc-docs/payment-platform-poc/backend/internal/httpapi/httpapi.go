@@ -23,6 +23,7 @@ func (a *API) Router() http.Handler {
 	r.Post("/api/v1/payments", a.create)
 	r.Post("/api/v1/payments/pay", a.pay)
 	r.Get("/api/v1/payments/{id}", a.get)
+	r.Get("/api/v1/payments/{id}/activity", a.activity)
 	r.Post("/api/v1/payments/{id}/authorize", a.authorize)
 	r.Post("/api/v1/payments/{id}/capture", a.capture)
 	r.Post("/api/v1/payments/{id}/refund", a.refund)
@@ -126,6 +127,19 @@ func (a *API) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	write(w, 200, p)
+}
+
+func (a *API) activity(w http.ResponseWriter, r *http.Request) {
+	if _, err := a.Service.Store.Get(r.Context(), chi.URLParam(r, "id")); err != nil {
+		errorResponse(w, statusFor(err), err)
+		return
+	}
+	activity, err := a.Service.Store.Activity(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		errorResponse(w, statusFor(err), err)
+		return
+	}
+	write(w, http.StatusOK, activity)
 }
 func (a *API) authorize(w http.ResponseWriter, r *http.Request) {
 	k, ok := key(w, r)

@@ -45,17 +45,6 @@ func main() {
 			if err != nil {
 				threshold = 10000
 			}
-			adyenKey := os.Getenv("ADYEN_API_KEY")
-			adyenMerchant := os.Getenv("ADYEN_MERCHANT_ACCOUNT")
-			if adyenKey == "" || adyenMerchant == "" {
-				log.Error("ADYEN_API_KEY and ADYEN_MERCHANT_ACCOUNT are required for amount routing")
-				os.Exit(1)
-			}
-			adyen, err := adyenprocessor.New(adyenKey, adyenMerchant, os.Getenv("ADYEN_BASE_URL"), os.Getenv("ADYEN_PAYMENT_METHOD_JSON"))
-			if err != nil {
-				log.Error("invalid Adyen configuration", "error", err)
-				os.Exit(1)
-			}
 			adyenThreshold, err := strconv.ParseInt(os.Getenv("PROCESSOR_ADYEN_THRESHOLD"), 10, 64)
 			if err != nil {
 				adyenThreshold = 50000
@@ -63,7 +52,18 @@ func main() {
 			processors := map[string]payment.Processor{
 				"mock":   &mock.Processor{},
 				"stripe": stripe,
-				"adyen":  adyen,
+			}
+			adyenKey := os.Getenv("ADYEN_API_KEY")
+			adyenMerchant := os.Getenv("ADYEN_MERCHANT_ACCOUNT")
+			if adyenKey != "" && adyenMerchant != "" {
+				adyen, err := adyenprocessor.New(adyenKey, adyenMerchant, os.Getenv("ADYEN_BASE_URL"), os.Getenv("ADYEN_PAYMENT_METHOD_JSON"))
+				if err != nil {
+					log.Error("invalid Adyen configuration", "error", err)
+					os.Exit(1)
+				}
+				processors["adyen"] = adyen
+			} else {
+				log.Warn("Adyen is not configured; amounts above the Adyen threshold will be unavailable")
 			}
 			processor = processorrouter.New(processors, func(amount int64) string {
 				if amount <= threshold {

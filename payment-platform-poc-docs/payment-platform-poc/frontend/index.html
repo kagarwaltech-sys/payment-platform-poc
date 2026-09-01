@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment Platform Operations Console</title><link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header><div><small>PAYMENT PLATFORM</small><h1>Operations Console</h1></div><span class="live">● API demo</span></header>
+<main>
+<section class="hero"><div><small>END-TO-END DEMO</small><h2>Move money with a visible audit trail.</h2><p>Create, capture, retry safely, and refund a payment while the API state and ledger stay in sync.</p></div><div class="selected"><small>SELECTED PAYMENT</small><strong id="heroPayment">None</strong><span id="heroStatus">Create or load a payment</span></div></section>
+<div id="notice" class="notice hidden"></div>
+<div class="grid">
+<section class="card"><div class="title"><div><small>1 / CREATE</small><h3>Start a payment</h3></div><span class="pill">minor units</span></div>
+<form id="createForm"><div class="row"><label>Amount<input id="amount" type="number" min="1" value="10000" required><em>10000 = 100.00 USD</em></label><label>Currency<input id="currency" value="USD" maxlength="3" required></label></div><label>Reference<input id="reference" value="demo-order-1001" required></label><label>Flow<select id="flow"><option value="pos">POS — authorize and capture</option><option value="create">Create only — operate manually</option></select></label><button class="primary">Create payment →</button></form>
+<div class="presets"><span>Try:</span><button type="button" data-amount="5000" data-reference="small-order">small</button><button type="button" data-amount="25000" data-reference="routed-order">Stripe route</button><button type="button" data-amount="75000" data-reference="large-order">Adyen route</button></div></section>
+<section class="card"><div class="title"><div><small>2 / CONTROL</small><h3>Operate the payment</h3></div><span id="stateTag" class="pill muted">no selection</span></div><label>Payment ID<input id="paymentId" placeholder="Paste a payment ID"></label><div class="buttons"><button id="loadBtn">Load payment</button><button id="authorizeBtn">Authorize</button><button id="captureBtn">Capture remaining</button></div><div class="refund"><label>Refund amount<input id="refundAmount" type="number" min="1" placeholder="e.g. 4000"></label><button id="refundBtn" class="danger">Refund with approval</button></div><label>Idempotency key<input id="idempotency" value="demo-payment-1"><em>Reuse it to demonstrate safe retries.</em></label></section>
+</div>
+<section class="card details"><div class="title"><div><small>3 / OBSERVE</small><h3>Payment state</h3></div><button id="refreshBtn" class="link">↻ Refresh</button></div><div id="emptyState" class="empty">No payment selected yet. Create one above or load an existing ID.</div><div id="paymentDetails" class="hidden"><div class="metrics"><div><small>Status</small><strong id="detailStatus">—</strong></div><div><small>Amount</small><strong id="detailAmount">—</strong></div><div><small>Captured</small><strong id="detailCaptured">—</strong></div><div><small>Refunded</small><strong id="detailRefunded">—</strong></div><div><small>Processor</small><strong id="detailProcessor">—</strong></div></div><div class="columns"><div><h4>Payment record</h4><pre id="jsonOutput">{}</pre></div><div><h4>Activity & ledger</h4><div id="activity" class="timeline"></div></div></div></div></section>
+</main><footer>API state is authoritative · No raw card data is accepted</footer><script src="app.js"></script>
+</body></html>

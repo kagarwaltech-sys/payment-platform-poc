@@ -59,7 +59,9 @@ $env:PAYMENT_PROCESSOR='mock'
 docker compose -f payment-platform-poc-docs/payment-platform-poc/docker-compose.yml up --build
 ```
 
-The default mode is Stripe test mode and requires `STRIPE_SECRET_KEY`. Amount routing requires `PAYMENT_PROCESSOR=amount` plus Stripe and Adyen configuration.
+Open `http://localhost:3000` for the operations console. It uses the same Compose network and reverse-proxies API requests to the backend.
+
+The default mode is Stripe test mode and requires `STRIPE_SECRET_KEY`. Amount routing uses configured processors; Adyen credentials are only needed for amounts routed above the Adyen threshold.
 
 ## Example API call
 

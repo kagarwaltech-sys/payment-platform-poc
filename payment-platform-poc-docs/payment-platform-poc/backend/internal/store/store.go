@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"payment-platform/backend/internal/payment"
 
@@ -107,6 +108,98 @@ type CaptureRequest struct {
 }
 type RefundRequest struct {
 	Amount int64 `json:"amount"`
+}
+
+type CaptureActivity struct {
+	ID                 string    `json:"id"`
+	Amount             int64     `json:"amount"`
+	ProcessorCaptureID string    `json:"processor_capture_id"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type RefundActivity struct {
+	ID                string    `json:"id"`
+	Amount            int64     `json:"amount"`
+	ProcessorRefundID string    `json:"processor_refund_id"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
+type JournalActivity struct {
+	ID            string    `json:"id"`
+	EventType     string    `json:"event_type"`
+	ReferenceType string    `json:"reference_type"`
+	ReferenceID   string    `json:"reference_id"`
+	Currency      string    `json:"currency"`
+	Debit         int64     `json:"debit"`
+	Credit        int64     `json:"credit"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+type PaymentActivity struct {
+	Captures []CaptureActivity `json:"captures"`
+	Refunds  []RefundActivity  `json:"refunds"`
+	Journals []JournalActivity `json:"journals"`
+}
+
+func (s *Store) Activity(ctx context.Context, id string) (PaymentActivity, error) {
+	var activity PaymentActivity
+	rows, err := s.Pool.Query(ctx, `SELECT id::text,amount,processor_capture_id,created_at FROM payment_captures WHERE payment_id=$1 ORDER BY created_at`, id)
+	if err != nil {
+		return activity, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item CaptureActivity
+		if err := rows.Scan(&item.ID, &item.Amount, &item.ProcessorCaptureID, &item.CreatedAt); err != nil {
+			return activity, err
+		}
+		activity.Captures = append(activity.Captures, item)
+	}
+	if err := rows.Err(); err != nil {
+		return activity, err
+	}
+
+	rows, err = s.Pool.Query(ctx, `SELECT id::text,amount,processor_refund_id,created_at FROM payment_refunds WHERE payment_id=$1 ORDER BY created_at`, id)
+	if err != nil {
+		return activity, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item RefundActivity
+		if err := rows.Scan(&item.ID, &item.Amount, &item.ProcessorRefundID, &item.CreatedAt); err != nil {
+			return activity, err
+		}
+		activity.Refunds = append(activity.Refunds, item)
+	}
+	if err := rows.Err(); err != nil {
+		return activity, err
+	}
+
+	rows, err = s.Pool.Query(ctx, `
+		SELECT lj.id::text,lj.event_type,lj.reference_type,lj.reference_id::text,lj.currency,
+		       COALESCE(SUM(le.amount) FILTER (WHERE le.direction='DEBIT'),0),
+		       COALESCE(SUM(le.amount) FILTER (WHERE le.direction='CREDIT'),0),lj.created_at
+		FROM ledger_journals lj
+		JOIN ledger_entries le ON le.journal_id=lj.id
+		WHERE (lj.reference_type='payment_capture' AND lj.reference_id IN (SELECT id FROM payment_captures WHERE payment_id=$1))
+		   OR (lj.reference_type='payment_refund' AND lj.reference_id IN (SELECT id FROM payment_refunds WHERE payment_id=$1))
+		GROUP BY lj.id
+		ORDER BY lj.created_at`, id)
+	if err != nil {
+		return activity, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item JournalActivity
+		if err := rows.Scan(&item.ID, &item.EventType, &item.ReferenceType, &item.ReferenceID, &item.Currency, &item.Debit, &item.Credit, &item.CreatedAt); err != nil {
+			return activity, err
+		}
+		activity.Journals = append(activity.Journals, item)
+	}
+	if err := rows.Err(); err != nil {
+		return activity, err
+	}
+	return activity, nil
 }
 
 func (x *Service) Pay(ctx context.Context, key string, req CreateRequest) (payment.Payment, string, int, error) {
