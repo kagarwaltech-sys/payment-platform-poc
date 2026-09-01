@@ -53,6 +53,16 @@ func (p *Processor) Capture(ctx context.Context, paymentRef string, amount int64
 	return p.capture(ctx, paymentRef, amount, key)
 }
 
+func (p *Processor) Refund(ctx context.Context, paymentRef string, amount int64, key, _ string) (string, error) {
+	params := &stripego.RefundCreateParams{PaymentIntent: stripego.String(paymentRef), Amount: stripego.Int64(amount)}
+	params.SetIdempotencyKey(key)
+	refund, err := p.client.V1Refunds.Create(ctx, params)
+	if err != nil {
+		return "", err
+	}
+	return refund.ID, nil
+}
+
 func (p *Processor) CaptureFinal(ctx context.Context, paymentRef string, amount int64, key string, final bool) (string, error) {
 	return p.capture(ctx, paymentRef, amount, key)
 }

@@ -8,9 +8,9 @@ import (
 
 // Processor is deterministic and exposes call counts for tests.
 type Processor struct {
-	mu                       sync.Mutex
-	authorizations, captures int
-	AuthorizeErr, CaptureErr error
+	mu                                  sync.Mutex
+	authorizations, captures, refunds   int
+	AuthorizeErr, CaptureErr, RefundErr error
 }
 
 func (p *Processor) Name() string { return "mock" }
@@ -32,6 +32,15 @@ func (p *Processor) Capture(_ context.Context, paymentRef string, amount int64, 
 		return "", p.CaptureErr
 	}
 	return fmt.Sprintf("mock_cap_%s_%d_%s", paymentRef, amount, key), nil
+}
+func (p *Processor) Refund(_ context.Context, paymentRef string, amount int64, key, _ string) (string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.refunds++
+	if p.RefundErr != nil {
+		return "", p.RefundErr
+	}
+	return fmt.Sprintf("mock_ref_%s_%d_%s", paymentRef, amount, key), nil
 }
 func (p *Processor) Counts() (int, int) {
 	p.mu.Lock()

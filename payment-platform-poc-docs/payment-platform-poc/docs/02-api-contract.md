@@ -219,3 +219,45 @@ With `PAYMENT_PROCESSOR=amount`, the current policy is:
 | `> PROCESSOR_ADYEN_THRESHOLD` | adyen |
 
 The router uses a named processor registry. Additional adapters can be registered without changing the payment service or database schema.
+
+## 6. Refund Payment
+
+`POST /api/v1/payments/{payment_id}/refund`
+
+Header:
+
+```text
+Idempotency-Key: <unique-key>
+```
+
+Request:
+
+```json
+{
+  "amount": 4000
+}
+```
+
+Response `200 OK`:
+
+```json
+{
+  "id": "8bf6cb57-b0bd-4a62-9e55-18ae0d16f001",
+  "amount": 10000,
+  "currency": "USD",
+  "captured_amount": 10000,
+  "refunded_amount": 4000,
+  "status": "CAPTURED",
+  "processor": "stripe",
+  "processor_payment_id": "pi_123",
+  "processor_refund_id": "re_123"
+}
+```
+
+Rules:
+
+- A refund amount must be positive.
+- A payment must have enough remaining captured amount to refund.
+- Multiple partial refunds are allowed until `refunded_amount == captured_amount`.
+- Refund state and the balanced refund ledger journal commit in one database transaction.
+- Reusing the same idempotency key returns the original refund result without calling the processor again.

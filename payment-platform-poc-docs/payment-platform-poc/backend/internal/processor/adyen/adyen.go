@@ -74,6 +74,21 @@ func (p *Processor) Capture(ctx context.Context, paymentRef string, amount int64
 	return response.PSPReference, nil
 }
 
+func (p *Processor) Refund(ctx context.Context, paymentRef string, amount int64, key, currency string) (string, error) {
+	body := map[string]any{
+		"amount":          map[string]any{"currency": currency, "value": amount},
+		"merchantAccount": p.merchantAccount,
+		"reference":       paymentRef + "-refund",
+	}
+	var response struct {
+		PSPReference string `json:"pspReference"`
+	}
+	if err := p.post(ctx, "/payments/"+paymentRef+"/refunds", key, body, &response); err != nil {
+		return "", err
+	}
+	return response.PSPReference, nil
+}
+
 func (p *Processor) post(ctx context.Context, path, idempotencyKey string, body any, response any) error {
 	payload, err := json.Marshal(body)
 	if err != nil {

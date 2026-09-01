@@ -11,10 +11,11 @@ PostgreSQL is the initial persistence layer.
 | currency | CHAR(3) | ISO 4217 |
 | authorized_amount | BIGINT | Cumulative authorized amount |
 | captured_amount | BIGINT | Cumulative captured amount |
+| refunded_amount | BIGINT | Cumulative refunded amount |
 | status | VARCHAR | Payment state |
 | capture_method | VARCHAR | `manual` initially |
 | reference | VARCHAR NULL | Merchant/order reference |
-| processor | VARCHAR NULL | `mock` initially |
+| processor | VARCHAR NULL | Selected processor name |
 | processor_payment_id | VARCHAR NULL | PSP reference |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
@@ -25,6 +26,8 @@ Constraints:
 - `authorized_amount >= 0`
 - `captured_amount >= 0`
 - `captured_amount <= authorized_amount`
+- `refunded_amount >= 0`
+- `refunded_amount <= captured_amount`
 - `authorized_amount <= amount` for first slice
 
 ## payment_captures
@@ -38,6 +41,18 @@ Constraints:
 | created_at | TIMESTAMPTZ | |
 
 This table is append-only.
+
+## payment_refunds
+
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID PK | Internal refund ID |
+| payment_id | UUID FK | Parent payment |
+| amount | BIGINT | Refunded amount |
+| processor_refund_id | VARCHAR UNIQUE | PSP refund reference |
+| created_at | TIMESTAMPTZ | |
+
+This table is append-only. Multiple refunds are allowed while their cumulative amount does not exceed the captured amount.
 
 ## idempotency_records
 
@@ -75,14 +90,16 @@ Initial accounts for a simple merchant payment:
 - `PROCESSOR_RECEIVABLE_USD` - asset
 - `MERCHANT_PAYABLE_USD` - liability
 
+Capture journals debit processor receivable and credit merchant payable. Refund journals reverse that direction for the refunded amount.
+
 ## ledger_journals
 
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID PK | |
-| event_type | VARCHAR | e.g. `PAYMENT_CAPTURED` |
-| reference_type | VARCHAR | e.g. `payment_capture` |
-| reference_id | UUID | Capture ID |
+| event_type | VARCHAR | e.g. `PAYMENT_CAPTURED` or `PAYMENT_REFUNDED` |
+| reference_type | VARCHAR | e.g. `payment_capture` or `payment_refund` |
+| reference_id | UUID | Capture or refund ID |
 | currency | CHAR(3) | |
 | created_at | TIMESTAMPTZ | Immutable |
 

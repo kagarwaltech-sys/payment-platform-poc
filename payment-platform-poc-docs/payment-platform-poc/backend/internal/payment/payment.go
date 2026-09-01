@@ -19,6 +19,7 @@ const (
 var (
 	ErrInvalidTransition = errors.New("invalid payment state transition")
 	ErrOverCapture       = errors.New("capture amount exceeds remaining authorized amount")
+	ErrOverRefund        = errors.New("refund amount exceeds remaining captured amount")
 	ErrInvalidAmount     = errors.New("amount must be greater than zero")
 )
 
@@ -28,6 +29,7 @@ type Payment struct {
 	Currency           string `json:"currency"`
 	AuthorizedAmount   int64  `json:"authorized_amount"`
 	CapturedAmount     int64  `json:"captured_amount"`
+	RefundedAmount     int64  `json:"refunded_amount"`
 	Status             Status `json:"status"`
 	CaptureMethod      string `json:"capture_method"`
 	Reference          string `json:"reference,omitempty"`
@@ -45,6 +47,7 @@ type Capture struct {
 type Processor interface {
 	Authorize(context.Context, string, int64, string) (string, error)
 	Capture(context.Context, string, int64, string) (string, error)
+	Refund(context.Context, string, int64, string, string) (string, error)
 }
 
 func CaptureStatus(current Status, authorized, captured, amount int64) (Status, error) {

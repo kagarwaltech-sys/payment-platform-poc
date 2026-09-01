@@ -2,12 +2,13 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 CREATE TABLE payments (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(), amount BIGINT NOT NULL CHECK(amount > 0), currency CHAR(3) NOT NULL,
- authorized_amount BIGINT NOT NULL DEFAULT 0 CHECK(authorized_amount >= 0), captured_amount BIGINT NOT NULL DEFAULT 0 CHECK(captured_amount >= 0),
+ authorized_amount BIGINT NOT NULL DEFAULT 0 CHECK(authorized_amount >= 0), captured_amount BIGINT NOT NULL DEFAULT 0 CHECK(captured_amount >= 0), refunded_amount BIGINT NOT NULL DEFAULT 0 CHECK(refunded_amount >= 0),
  status VARCHAR NOT NULL, capture_method VARCHAR NOT NULL, reference VARCHAR NULL, processor VARCHAR NULL, processor_payment_id VARCHAR NULL,
  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
- CHECK(captured_amount <= authorized_amount), CHECK(authorized_amount <= amount)
+ CHECK(captured_amount <= authorized_amount), CHECK(refunded_amount <= captured_amount), CHECK(authorized_amount <= amount)
 );
 CREATE TABLE payment_captures (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), payment_id UUID NOT NULL REFERENCES payments(id), amount BIGINT NOT NULL CHECK(amount > 0), processor_capture_id VARCHAR NOT NULL UNIQUE, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE payment_refunds (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), payment_id UUID NOT NULL REFERENCES payments(id), amount BIGINT NOT NULL CHECK(amount > 0), processor_refund_id VARCHAR NOT NULL UNIQUE, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE TABLE idempotency_records (idempotency_key VARCHAR NOT NULL, operation VARCHAR NOT NULL, request_hash VARCHAR NOT NULL, resource_id UUID NULL, response_code INT NULL, response_body JSONB NULL, status VARCHAR NOT NULL CHECK(status IN ('IN_PROGRESS','COMPLETED','FAILED')), created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY(idempotency_key, operation));
 CREATE TABLE ledger_accounts (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), code VARCHAR NOT NULL UNIQUE, name VARCHAR NOT NULL, account_type VARCHAR NOT NULL, currency CHAR(3) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE TABLE ledger_journals (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), event_type VARCHAR NOT NULL, reference_type VARCHAR NOT NULL, reference_id UUID NOT NULL, currency CHAR(3) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(event_type, reference_id));

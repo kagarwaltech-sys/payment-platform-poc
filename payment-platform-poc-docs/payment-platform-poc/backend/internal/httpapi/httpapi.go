@@ -25,6 +25,7 @@ func (a *API) Router() http.Handler {
 	r.Get("/api/v1/payments/{id}", a.get)
 	r.Post("/api/v1/payments/{id}/authorize", a.authorize)
 	r.Post("/api/v1/payments/{id}/capture", a.capture)
+	r.Post("/api/v1/payments/{id}/refund", a.refund)
 	return r
 }
 func (a *API) pay(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +62,8 @@ func errorResponse(w http.ResponseWriter, code int, err error) {
 		c = "INVALID_STATE_TRANSITION"
 	case errors.Is(err, payment.ErrOverCapture), errors.Is(err, payment.ErrInvalidAmount):
 		c = "INVALID_REQUEST"
+	case errors.Is(err, payment.ErrOverRefund):
+		c = "INVALID_REFUND"
 	case errors.Is(err, store.ErrPartialCaptureUnsupported):
 		c = "PARTIAL_CAPTURE_UNSUPPORTED"
 	case errors.Is(err, pgx.ErrNoRows):
@@ -88,6 +91,8 @@ func statusFor(err error) int {
 	case errors.Is(err, store.ErrIdempotencyConflict), errors.Is(err, payment.ErrInvalidTransition), errors.Is(err, store.ErrInProgress):
 		return 409
 	case errors.Is(err, payment.ErrOverCapture), errors.Is(err, payment.ErrInvalidAmount):
+		return 400
+	case errors.Is(err, payment.ErrOverRefund):
 		return 400
 	case errors.Is(err, store.ErrPartialCaptureUnsupported):
 		return 400
@@ -158,4 +163,25 @@ func (a *API) capture(w http.ResponseWriter, r *http.Request) {
 		payment.Payment
 		ProcessorCaptureID string `json:"processor_capture_id"`
 	}{p, cap})
+}
+
+func (a *API) refund(w http.ResponseWriter, r *http.Request) {
+	k, ok := key(w, r)
+	if !ok {
+		return
+	}
+	var q store.RefundRequest
+	if err := decode(r, &q); err != nil {
+		errorResponse(w, 400, err)
+		return
+	}
+	p, refundID, code, err := a.Service.Refund(r.Context(), chi.URLParam(r, "id"), k, q)
+	if err != nil {
+		errorResponse(w, statusFor(err), err)
+		return
+	}
+	write(w, code, struct {
+		payment.Payment
+		ProcessorRefundID string `json:"processor_refund_id"`
+	}{p, refundID})
 }

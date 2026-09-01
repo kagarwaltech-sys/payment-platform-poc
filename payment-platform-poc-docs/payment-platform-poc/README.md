@@ -40,6 +40,10 @@ Invoke-RestMethod http://localhost:8080/api/v1/payments/pay -Method Post -Header
 
 This creates, authorizes, captures, and records the ledger entry before returning `CAPTURED`. The existing endpoints remain available for flows that need separate authorization and capture.
 
+Refund a captured payment with `POST /api/v1/payments/{id}/refund` and a positive amount. Full and partial refunds are supported up to the total captured amount; Stripe and Adyen use their provider refund APIs.
+
+Existing databases must apply `backend/migrations/002_add_refunds.sql`; fresh databases apply all migrations from the Docker initialization directory.
+
 Run the Go tests against the Compose database from `backend`:
 
 ```powershell
@@ -81,8 +85,9 @@ The first implementation slice is backend-only and intentionally narrow:
 6. Support idempotent retries
 7. Use mock, Stripe, or Adyen through the processor registry
 8. Complete a POS-style payment with one API call
+9. Full and partial refunds with idempotent provider calls
 
-Not included yet: refunds, disputes, webhooks, settlement, reconciliation, automatic recovery after ambiguous PSP results, or frontend UI.
+Not included yet: disputes, webhooks, settlement, reconciliation, automatic recovery after ambiguous PSP results, or frontend UI.
 
 ## Repository Structure
 

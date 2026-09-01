@@ -62,3 +62,5 @@ Remaining capturable= 6000
 - Capture cannot exceed `authorized_amount - captured_amount`.
 - Partial capture is supported only by processors that advertise that capability. The current Stripe and Adyen adapters require the full remaining authorized amount.
 - Once fully captured, further capture requests fail unless they are exact idempotent retries of a prior request.
+
+Refunds do not change the payment capture state. They are tracked independently through `refunded_amount` and append-only refund records; a payment must have captured funds remaining to refund.

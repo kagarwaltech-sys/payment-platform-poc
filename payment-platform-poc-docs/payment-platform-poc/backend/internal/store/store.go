@@ -79,11 +79,11 @@ func (s *Store) Fail(ctx context.Context, key, operation string) {
 
 func scanPayment(row pgx.Row) (payment.Payment, error) {
 	var p payment.Payment
-	err := row.Scan(&p.ID, &p.Amount, &p.Currency, &p.AuthorizedAmount, &p.CapturedAmount, &p.Status, &p.CaptureMethod, &p.Reference, &p.Processor, &p.ProcessorPaymentID)
+	err := row.Scan(&p.ID, &p.Amount, &p.Currency, &p.AuthorizedAmount, &p.CapturedAmount, &p.RefundedAmount, &p.Status, &p.CaptureMethod, &p.Reference, &p.Processor, &p.ProcessorPaymentID)
 	return p, err
 }
 
-const paymentColumns = `id::text,amount,currency,authorized_amount,captured_amount,status,capture_method,COALESCE(reference,''),COALESCE(processor,''),COALESCE(processor_payment_id,'')`
+const paymentColumns = `id::text,amount,currency,authorized_amount,captured_amount,refunded_amount,status,capture_method,COALESCE(reference,''),COALESCE(processor,''),COALESCE(processor_payment_id,'')`
 
 func (s *Store) Get(ctx context.Context, id string) (payment.Payment, error) {
 	return scanPayment(s.Pool.QueryRow(ctx, `SELECT `+paymentColumns+` FROM payments WHERE id=$1`, id))
@@ -103,6 +103,9 @@ type CreateRequest struct {
 	Reference     string `json:"reference"`
 }
 type CaptureRequest struct {
+	Amount int64 `json:"amount"`
+}
+type RefundRequest struct {
 	Amount int64 `json:"amount"`
 }
 
@@ -290,6 +293,99 @@ func (x *Service) Capture(ctx context.Context, id, key string, req CaptureReques
 	}
 	return p, processorID, 200, nil
 }
+
+func (x *Service) Refund(ctx context.Context, id, key string, req RefundRequest) (payment.Payment, string, int, error) {
+	op := "REFUND_PAYMENT"
+	hash := Hash(struct {
+		ID     string
+		Amount int64
+	}{id, req.Amount})
+	r, err := x.Store.Claim(ctx, key, op, hash)
+	if err != nil {
+		return payment.Payment{}, "", 0, err
+	}
+	if r.Completed {
+		var v struct {
+			Payment           payment.Payment `json:"payment"`
+			ProcessorRefundID string          `json:"processor_refund_id"`
+		}
+		err = json.Unmarshal(r.Body, &v)
+		return v.Payment, v.ProcessorRefundID, r.Code, err
+	}
+	tx, err := x.Store.Pool.Begin(ctx)
+	if err != nil {
+		return payment.Payment{}, "", 0, err
+	}
+	defer tx.Rollback(ctx)
+	p, err := getForUpdate(ctx, tx, id)
+	if err != nil {
+		x.Store.Fail(ctx, key, op)
+		return p, "", 0, err
+	}
+	if req.Amount <= 0 {
+		x.Store.Fail(ctx, key, op)
+		return p, "", 0, payment.ErrInvalidAmount
+	}
+	if req.Amount > p.CapturedAmount-p.RefundedAmount {
+		x.Store.Fail(ctx, key, op)
+		return p, "", 0, payment.ErrOverRefund
+	}
+	processor := x.Processor
+	if resolver, ok := x.Processor.(interface {
+		ProcessorByName(string) (payment.Processor, bool)
+	}); ok {
+		processor, ok = resolver.ProcessorByName(p.Processor)
+		if !ok {
+			x.Store.Fail(ctx, key, op)
+			return p, "", 0, fmt.Errorf("processor %q is not configured", p.Processor)
+		}
+	}
+	processorID, err := processor.Refund(ctx, p.ProcessorPaymentID, req.Amount, key, p.Currency)
+	if err != nil {
+		x.Store.Fail(ctx, key, op)
+		return p, "", 0, err
+	}
+	var refundID string
+	err = tx.QueryRow(ctx, `INSERT INTO payment_refunds(payment_id,amount,processor_refund_id) VALUES($1,$2,$3) RETURNING id::text`, p.ID, req.Amount, processorID).Scan(&refundID)
+	if err != nil {
+		return p, "", 0, err
+	}
+	p.RefundedAmount += req.Amount
+	_, err = tx.Exec(ctx, `UPDATE payments SET refunded_amount=$2,updated_at=now() WHERE id=$1`, p.ID, p.RefundedAmount)
+	if err != nil {
+		return p, "", 0, err
+	}
+	if err = x.insertRefundJournal(ctx, tx, refundID, p.Currency, req.Amount); err != nil {
+		return p, "", 0, err
+	}
+	body := struct {
+		Payment           payment.Payment `json:"payment"`
+		ProcessorRefundID string          `json:"processor_refund_id"`
+	}{p, processorID}
+	if err = x.Store.Complete(ctx, tx, key, op, p.ID, 200, body); err != nil {
+		return p, "", 0, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return p, "", 0, err
+	}
+	return p, processorID, 200, nil
+}
+
+func (x *Service) insertRefundJournal(ctx context.Context, tx pgx.Tx, refundID, currency string, amount int64) error {
+	var journal, payable, receivable string
+	if err := tx.QueryRow(ctx, `INSERT INTO ledger_journals(event_type,reference_type,reference_id,currency) VALUES('PAYMENT_REFUNDED','payment_refund',$1,$2) RETURNING id::text`, refundID, currency).Scan(&journal); err != nil {
+		return err
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO ledger_accounts(code,name,account_type,currency) VALUES($1,$1,'LIABILITY',$2) ON CONFLICT(code) DO UPDATE SET code=EXCLUDED.code RETURNING id::text`, `MERCHANT_PAYABLE_`+currency, currency).Scan(&payable); err != nil {
+		return err
+	}
+	if err := tx.QueryRow(ctx, `INSERT INTO ledger_accounts(code,name,account_type,currency) VALUES($1,$1,'ASSET',$2) ON CONFLICT(code) DO UPDATE SET code=EXCLUDED.code RETURNING id::text`, `PROCESSOR_RECEIVABLE_`+currency, currency).Scan(&receivable); err != nil {
+		return err
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO ledger_entries(journal_id,account_id,direction,amount) VALUES($1,$2,'DEBIT',$3),($1,$4,'CREDIT',$3)`, journal, payable, amount, receivable)
+	return err
+}
+
 func (x *Service) insertJournal(ctx context.Context, tx pgx.Tx, captureID, currency string, amount int64) error {
 	var j, recv, payable string
 	err := tx.QueryRow(ctx, `INSERT INTO ledger_journals(event_type,reference_type,reference_id,currency) VALUES('PAYMENT_CAPTURED','payment_capture',$1,$2) RETURNING id::text`, captureID, currency).Scan(&j)

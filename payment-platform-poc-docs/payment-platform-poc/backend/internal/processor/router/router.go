@@ -40,4 +40,8 @@ func (r *Router) Capture(context.Context, string, int64, string) (string, error)
 	return "", fmt.Errorf("processor must be resolved before capture")
 }
 
+func (r *Router) Refund(context.Context, string, int64, string, string) (string, error) {
+	return "", fmt.Errorf("processor must be resolved before refund")
+}
+
 var _ payment.Processor = (*Router)(nil)
