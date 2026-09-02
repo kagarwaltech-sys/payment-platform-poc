@@ -9,6 +9,8 @@ Expose the payment platform to AI clients without coupling payment logic to an L
 ```mermaid
 flowchart LR
     UI[Operations Console] -->|HTTPS REST via reverse proxy| API
+    UI -->|HTTPS demo calls| GATEWAY[Demo Agent Gateway]
+    GATEWAY -->|MCP stdio| MCP
     AGENT[payment-platform-agent] -->|MCP| MCP[payment-platform-mcp]
     MCP -->|HTTPS REST| API[payment-platform-poc API]
     API --> ROUTER[Processor Router]
@@ -65,6 +67,8 @@ payment-agent.internal <- payment-platform-agent
 The first MCP transport is stdio for local clients. A later deployment can add a network transport behind authentication without changing tool semantics.
 
 The operations console is a browser-based demonstration client served from the Compose stack. It calls the payment API through an Nginx reverse proxy and displays authoritative payment state, processor routing results, captures, refunds, and ledger activity. It does not access PostgreSQL or provider APIs directly.
+
+For browser demonstrations, the demo agent gateway launches the actual MCP server over stdio and exposes a narrow HTTP bridge for tool discovery, deterministic request planning, approval, and execution. This bridge is demonstration infrastructure; it does not replace the production agent boundary.
 
 ## Delivery Plan
 

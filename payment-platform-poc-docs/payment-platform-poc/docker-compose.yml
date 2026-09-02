@@ -49,5 +49,19 @@ services:
       - "3000:80"
     restart: unless-stopped
 
+  demo-gateway:
+    build:
+      context: ../../..
+      dockerfile: payment-platform-poc/payment-platform-poc-docs/payment-platform-poc/demo-gateway/Dockerfile
+    environment:
+      PAYMENT_API_URL: http://api:8080
+      MCP_SERVER_COMMAND: /usr/local/bin/payment-platform-mcp
+      PAYMENT_API_TOKEN: ${PAYMENT_API_TOKEN:-}
+    depends_on:
+      - api
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+
 volumes:
   postgres-data:

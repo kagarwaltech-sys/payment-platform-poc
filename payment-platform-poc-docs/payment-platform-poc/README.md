@@ -28,7 +28,7 @@ docker compose up --build
 
 For Adyen routing, also set `ADYEN_API_KEY` and `ADYEN_MERCHANT_ACCOUNT`. Without Adyen credentials, mock and Stripe routes remain available, while amounts above the Adyen threshold return a clear unavailable-processor error. The default Adyen test payment method is a test Visa card; override it with `ADYEN_PAYMENT_METHOD_JSON` when needed.
 
-The API is available at `http://localhost:8080`. The operations console is available at `http://localhost:3000`; it exercises the real API and displays payment state, processor references, captures, refunds, and ledger journals. The first database start applies `backend/migrations/001_initial.sql` automatically. Postgres data is stored in the `postgres-data` volume.
+The API is available at `http://localhost:8080`. The operations console is available at `http://localhost:3000`; it exercises the real API and displays payment state, processor references, captures, refunds, ledger journals, and the agent/MCP approval flow. The first database start applies `backend/migrations/001_initial.sql` automatically. Postgres data is stored in the `postgres-data` volume.
 
 For a POS-style server-controlled payment, use the single-call endpoint:
 
@@ -73,6 +73,7 @@ A portfolio-grade proof of concept for a modern card-payment backend implemented
 - Transactional consistency between payment state and ledger writes
 - Clear architecture documentation suitable for design review and portfolio discussion
 - Operations console for end-to-end lifecycle demonstrations
+- Browser-visible agent and MCP tool discovery, planning, approval, and execution
 
 ## Current Scope
 
@@ -104,7 +105,8 @@ payment-platform-poc/
 │   ├── 06-idempotency.md
 │   └── 07-codex-implementation-prompt.md
 ├── backend/                 # Go API implementation
-└── frontend/                # static operations console served by Nginx
+├── frontend/                # static operations console served by Nginx
+└── demo-gateway/            # browser bridge to agent and MCP over stdio
 ```
 
 ## Architecture Principle
